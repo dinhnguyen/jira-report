@@ -13,9 +13,10 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
-import { secondsToHours, formatTimeEstimate } from '@/lib/time-calculator';
+import { secondsToHours, secondsToWorkingDays, formatTimeEstimate } from '@/lib/time-calculator';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useTranslation } from '@/locales/translations';
+import BurndownDataTable from './BurndownDataTable';
 
 interface BurndownChartProps {
   timeline: TimeData[];
@@ -24,14 +25,56 @@ interface BurndownChartProps {
   allIssues: JiraIssue[];
 }
 
-interface AssigneeStats {
-  name: string;
-  totalEstimate: number;
-  completedEstimate: number;
-  remainingEstimate: number;
-  issueCount: number;
-  completedCount: number;
+// Custom Tooltip for Burndown Chart
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    dataKey: string;
+    payload: any;
+    color?: string;
+  }>;
+  label?: string;
+  settings: any;
+  t: any;
 }
+
+const CustomTooltip = ({ active, payload, label, settings, t }: CustomTooltipProps) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const data = payload[0].payload;
+  const delta = data['Delta'];
+  const deltaReason = data['Delta Reason'];
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-600 rounded shadow-lg">
+      <p className="font-semibold mb-2 text-gray-900 dark:text-gray-100">{label}</p>
+      {payload.map((entry, index) => {
+        const hours = entry.value.toFixed(1);
+        const days = (entry.value / 8).toFixed(1);
+        return (
+          <p key={index} style={{ color: entry.color }} className="text-sm">
+            {entry.name}: <span className="font-mono font-bold">{hours}h</span>
+            <span className="text-xs ml-2 opacity-75">({days}d)</span>
+          </p>
+        );
+      })}
+      {delta !== 0 && deltaReason && (
+        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <p className={`text-xs font-semibold ${delta < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {delta < 0 ? '↓' : '↑'} {Math.abs(delta).toFixed(1)}h ({(Math.abs(delta) / 8).toFixed(1)}d): {deltaReason}
+          </p>
+        </div>
+      )}
+      <div className="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          {data['Issues Completed']}/{data['Total Issues']} {t('issues')} {t('completed')}
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export default function BurndownChart({
   timeline,
@@ -41,7 +84,7 @@ export default function BurndownChart({
 }: BurndownChartProps) {
   const { settings } = useSettings();
   const t = useTranslation(settings.language);
-  const [showAssigneeStats, setShowAssigneeStats] = useState(false);
+
   if (timeline.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-gray-900/50 p-6 border border-gray-200 dark:border-gray-700">
@@ -61,17 +104,24 @@ export default function BurndownChart({
     const itemDate = parseISO(item.date);
     const isFuture = itemDate > today;
 
+    // Use timeSpentSeconds directly from timeline data
+    const timeSpentHours = isFuture ? null : secondsToHours(item.timeSpentSeconds);
+
     return {
       date: format(itemDate, 'dd/MM'),
       fullDate: item.date,
-      'Công việc còn lại (giờ)': isFuture ? null : secondsToHours(item.remainingWorkSeconds),
-      'Đường lý tưởng (giờ)': secondsToHours(item.idealRemainingSeconds),
+      'Time Spent': timeSpentHours,
+      'Remaining Work': isFuture ? null : secondsToHours(item.remainingWorkSeconds),
+      'Ideal Line': secondsToHours(item.idealRemainingSeconds),
       'Issues Completed': item.issuesCompleted,
       'Total Issues': item.totalIssues,
+      'Delta': item.deltaSeconds ? secondsToHours(item.deltaSeconds) : 0,
+      'Delta Reason': item.deltaReason || '',
     };
   });
 
   const totalEstimateHours = secondsToHours(totalEstimate);
+  const totalEstimateDays = secondsToWorkingDays(totalEstimate);
 
   // Calculate completed work from issues that are Done
   const completedIssues = allIssues.filter(
@@ -82,15 +132,18 @@ export default function BurndownChart({
     0
   );
   const completedWork = secondsToHours(completedWorkSeconds);
+  const completedWorkDays = secondsToWorkingDays(completedWorkSeconds);
 
   // Find the last non-future date to get current remaining work
   const lastActualData = timeline
     .filter(item => parseISO(item.date) <= today)
     .slice(-1)[0];
 
-  const currentRemaining = lastActualData
-    ? secondsToHours(lastActualData.remainingWorkSeconds)
-    : totalEstimateHours;
+  const currentRemainingSeconds = lastActualData
+    ? lastActualData.remainingWorkSeconds
+    : totalEstimate;
+  const currentRemaining = secondsToHours(currentRemainingSeconds);
+  const currentRemainingDays = secondsToWorkingDays(currentRemainingSeconds);
 
   // Debug logging
   console.log('=== BURNDOWN CHART DEBUG ===');
@@ -117,39 +170,8 @@ export default function BurndownChart({
     console.log(`${item.date}: remaining=${item.remainingWorkSeconds}s (${secondsToHours(item.remainingWorkSeconds)}h), ideal=${item.idealRemainingSeconds}s`);
   });
 
-  // Calculate assignee statistics
-  const assigneeStatsMap = new Map<string, AssigneeStats>();
-
-  allIssues.forEach(issue => {
-    const assigneeName = issue.fields.assignee?.displayName || 'Unassigned';
-    const estimate = issue.fields.timetracking?.originalEstimateSeconds || 0;
-    const isDone = issue.fields.status.statusCategory.key === 'done';
-
-    if (!assigneeStatsMap.has(assigneeName)) {
-      assigneeStatsMap.set(assigneeName, {
-        name: assigneeName,
-        totalEstimate: 0,
-        completedEstimate: 0,
-        remainingEstimate: 0,
-        issueCount: 0,
-        completedCount: 0,
-      });
-    }
-
-    const stats = assigneeStatsMap.get(assigneeName)!;
-    stats.totalEstimate += estimate;
-    stats.issueCount += 1;
-
-    if (isDone) {
-      stats.completedEstimate += estimate;
-      stats.completedCount += 1;
-    } else {
-      stats.remainingEstimate += estimate;
-    }
-  });
-
-  const assigneeStats = Array.from(assigneeStatsMap.values())
-    .sort((a, b) => b.totalEstimate - a.totalEstimate);
+  // Get initial total from first day's estimate
+  const initialTotal = timeline.length > 0 ? timeline[0].timeEstimateSeconds : 0;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-gray-900/50 p-6 border border-gray-200 dark:border-gray-700 transition-colors duration-200">
@@ -163,9 +185,14 @@ export default function BurndownChart({
           <h3 className="text-sm font-medium text-primary-900 dark:text-primary-200 mb-1">
             {t('totalWork')}
           </h3>
-          <p className="text-2xl font-bold text-primary-700 dark:text-primary-400">
-            {totalEstimateHours.toFixed(1)} {t('hours')}
-          </p>
+          <div className="flex items-baseline gap-3">
+            <p className="text-2xl font-bold text-primary-700 dark:text-primary-400">
+              {totalEstimateHours.toFixed(1)} {t('hours')}
+            </p>
+            <p className="text-lg font-semibold text-primary-600 dark:text-primary-500">
+              {totalEstimateDays.toFixed(1)}d
+            </p>
+          </div>
           <p className="text-xs text-primary-600 dark:text-primary-500 mt-1">
             {allIssues.length} {t('issues')}
           </p>
@@ -174,9 +201,14 @@ export default function BurndownChart({
           <h3 className="text-sm font-medium text-green-900 dark:text-green-200 mb-1">
             {t('completed')}
           </h3>
-          <p className="text-2xl font-bold text-green-700 dark:text-green-400">
-            {completedWork.toFixed(1)} {t('hours')}
-          </p>
+          <div className="flex items-baseline gap-3">
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+              {completedWork.toFixed(1)} {t('hours')}
+            </p>
+            <p className="text-lg font-semibold text-green-600 dark:text-green-500">
+              {completedWorkDays.toFixed(1)}d
+            </p>
+          </div>
           <p className="text-xs text-green-600 dark:text-green-500 mt-1">
             {totalEstimateHours > 0 ? ((completedWork / totalEstimateHours) * 100).toFixed(0) : 0}% • {completedIssues.length} {t('issues')}
           </p>
@@ -185,94 +217,18 @@ export default function BurndownChart({
           <h3 className="text-sm font-medium text-cta-900 dark:text-cta-200 mb-1">
             {t('remaining')}
           </h3>
-          <p className="text-2xl font-bold text-cta-700 dark:text-cta-400">
-            {currentRemaining.toFixed(1)} {t('hours')}
-          </p>
+          <div className="flex items-baseline gap-3">
+            <p className="text-2xl font-bold text-cta-700 dark:text-cta-400">
+              {currentRemaining.toFixed(1)} {t('hours')}
+            </p>
+            <p className="text-lg font-semibold text-cta-600 dark:text-cta-500">
+              {currentRemainingDays.toFixed(1)}d
+            </p>
+          </div>
           <p className="text-xs text-cta-600 dark:text-cta-500 mt-1">
             {totalEstimateHours > 0 ? ((currentRemaining / totalEstimateHours) * 100).toFixed(0) : 0}% • {allIssues.length - completedIssues.length} {t('issues')}
           </p>
         </div>
-      </div>
-
-      {/* Assignee Statistics - Expandable */}
-      <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg">
-        <button
-          onClick={() => setShowAssigneeStats(!showAssigneeStats)}
-          className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg"
-        >
-          <div className="flex items-center gap-2">
-            <svg
-              className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${showAssigneeStats ? 'transform rotate-90' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {t('assigneeStats')} ({assigneeStats.length} {t('people')})
-            </h3>
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {showAssigneeStats ? t('clickToHide') : t('clickToExpand')}
-          </span>
-        </button>
-
-        {showAssigneeStats && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-3">
-              {assigneeStats.map((stats) => {
-                const completionRate = stats.totalEstimate > 0
-                  ? (stats.completedEstimate / stats.totalEstimate) * 100
-                  : 0;
-
-                return (
-                  <div key={stats.name} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">{stats.name}</h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {stats.completedCount}/{stats.issueCount} {t('issuesCompleted')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {formatTimeEstimate(stats.totalEstimate)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('totalEstimate')}</p>
-                      </div>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="mb-2">
-                      <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        <span>{t('completed')}: {formatTimeEstimate(stats.completedEstimate)}</span>
-                        <span>{completionRate.toFixed(0)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                        <div
-                          className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all"
-                          style={{ width: `${completionRate}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4 text-xs text-gray-600 dark:text-gray-400">
-                      <div>
-                        <span className="font-medium text-green-700 dark:text-green-400">{t('completedWork')}: </span>
-                        {formatTimeEstimate(stats.completedEstimate)}
-                      </div>
-                      <div>
-                        <span className="font-medium text-cta-700 dark:text-cta-400">{t('remainingWork')}: </span>
-                        {formatTimeEstimate(stats.remainingEstimate)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Burndown Chart */}
@@ -280,14 +236,24 @@ export default function BurndownChart({
         <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
           {t('chartTitle')}
         </h3>
-        <div className="mb-3 flex gap-4 text-sm">
+        <div className="mb-3 flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-gray-500 dark:bg-gray-400 opacity-50"></div>
+            <svg width="24" height="8" className="flex-shrink-0">
+              <line x1="0" y1="4" x2="24" y2="4" stroke="#9CA3AF" strokeWidth="2" strokeDasharray="4 2" />
+            </svg>
             <span className="text-gray-700 dark:text-gray-300">{t('idealLine')}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-red-500"></div>
-            <span className="text-gray-700 dark:text-gray-300">{t('remainingTime')}</span>
+            <svg width="24" height="8" className="flex-shrink-0">
+              <line x1="0" y1="4" x2="24" y2="4" stroke="#EF4444" strokeWidth="3" />
+            </svg>
+            <span className="text-gray-700 dark:text-gray-300">{t('remainingWorkLine')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg width="24" height="8" className="flex-shrink-0">
+              <line x1="0" y1="4" x2="24" y2="4" stroke="#3B82F6" strokeWidth="3" />
+            </svg>
+            <span className="text-gray-700 dark:text-gray-300">{t('timeSpentLine')}</span>
           </div>
         </div>
         <ResponsiveContainer width="100%" height={400}>
@@ -299,94 +265,167 @@ export default function BurndownChart({
               angle={-45}
               textAnchor="end"
               height={80}
-              label={{ value: 'Ngày', position: 'insideBottom', offset: -10 }}
+              label={{ value: settings.language === 'vi' ? 'Ngày' : 'Date', position: 'insideBottom', offset: -10 }}
             />
             <YAxis
-              label={{ value: 'Công việc còn lại (giờ)', angle: -90, position: 'insideLeft' }}
+              label={{
+                value: settings.language === 'vi' ? 'Giờ (Hours)' : 'Hours',
+                angle: -90,
+                position: 'insideLeft'
+              }}
               tick={{ fontSize: 12 }}
-              domain={[0, totalEstimateHours]}
+              domain={[0, 'auto']}
               tickFormatter={(value) => value.toFixed(0)}
             />
-            <Tooltip
-              contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
-              formatter={(value: number) => `${value.toFixed(1)} giờ`}
-            />
+            <Tooltip content={<CustomTooltip settings={settings} t={t} />} />
             <Legend />
+            {/* Ideal Line - Gray Dashed */}
             <Line
               type="linear"
-              dataKey="Đường lý tưởng (giờ)"
+              dataKey="Ideal Line"
               stroke="#9CA3AF"
               strokeWidth={2}
               dot={false}
               strokeDasharray="5 5"
-              name="Đường lý tưởng"
+              name={t('idealLine')}
             />
+            {/* Remaining Work - Red Solid */}
             <Line
-              type="monotone"
-              dataKey="Công việc còn lại (giờ)"
+              type="step"
+              dataKey="Remaining Work"
               stroke="#EF4444"
               strokeWidth={3}
               dot={{ r: 4, fill: '#EF4444' }}
-              name="Thời gian còn lại"
+              name={t('remainingWorkLine')}
+              connectNulls={false}
+            />
+            {/* Time Spent - Blue Solid */}
+            <Line
+              type="step"
+              dataKey="Time Spent"
+              stroke="#3B82F6"
+              strokeWidth={3}
+              dot={{ r: 4, fill: '#3B82F6' }}
+              name={t('timeSpentLine')}
               connectNulls={false}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Debug Information Panel */}
-      <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-        <details className="cursor-pointer">
-          <summary className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
-            🔍 {t('debugInfo')}
-          </summary>
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="font-medium text-yellow-900 dark:text-yellow-200">{t('debugOverview')}</p>
-                <ul className="list-disc list-inside text-yellow-800 dark:text-yellow-300 mt-1 space-y-1">
-                  <li>{t('debugTotalIssues')}: {allIssues.length}</li>
-                  <li>{t('debugIssuesDone')}: {completedIssues.length}</li>
-                  <li>{t('debugIssuesInProgress')}: {allIssues.length - completedIssues.length}</li>
-                </ul>
-              </div>
-              <div>
-                <p className="font-medium text-yellow-900 dark:text-yellow-200">{t('debugTimeHours')}</p>
-                <ul className="list-disc list-inside text-yellow-800 dark:text-yellow-300 mt-1 space-y-1">
-                  <li>{t('debugTotalEstimate')}: {totalEstimateHours.toFixed(1)}h</li>
-                  <li>{t('completed')}: {completedWork.toFixed(1)}h ({totalEstimateHours > 0 ? ((completedWork / totalEstimateHours) * 100).toFixed(0) : 0}%)</li>
-                  <li>{t('remaining')}: {currentRemaining.toFixed(1)}h ({totalEstimateHours > 0 ? ((currentRemaining / totalEstimateHours) * 100).toFixed(0) : 0}%)</li>
-                </ul>
-              </div>
-            </div>
-            <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-yellow-300 dark:border-yellow-700">
-              <p className="font-medium text-yellow-900 dark:text-yellow-200 mb-1">{t('debugFormulas')}</p>
-              <ul className="text-xs text-yellow-800 dark:text-yellow-300 space-y-1">
-                <li>• <strong>{t('debugTotalEstimate')}</strong> = {settings.language === 'vi' ? 'Tổng originalEstimateSeconds của TẤT CẢ issues trong sprint' : 'Sum of originalEstimateSeconds of ALL issues in sprint'}</li>
-                <li>• <strong>{t('completed')}</strong> = {settings.language === 'vi' ? 'Tổng originalEstimateSeconds của các issues có status.statusCategory.key === \'done\'' : 'Sum of originalEstimateSeconds of issues with status.statusCategory.key === \'done\''}</li>
-                <li>• <strong>{t('remaining')}</strong> = {settings.language === 'vi' ? 'Tổng estimate - Đã hoàn thành (tại ngày hiện tại)' : 'Total estimate - Completed (as of current date)'}</li>
-                <li>• <strong>{settings.language === 'vi' ? 'Đường đỏ (chart)' : 'Red line (chart)'}</strong> = {settings.language === 'vi' ? 'Còn lại theo từng ngày (giảm khi Done, tăng khi thêm issue)' : 'Remaining by day (decreases when Done, increases when adding issue)'}</li>
-                <li>• <strong>{settings.language === 'vi' ? 'Đường xám (chart)' : 'Gray line (chart)'}</strong> = {settings.language === 'vi' ? 'Giảm tuyến tính từ tổng estimate về 0 trong thời gian sprint' : 'Linear decrease from total estimate to 0 over sprint duration'}</li>
+      {/* Debug Information - Sprint & Issues */}
+      {/* <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-3">
+          🔍 {t('debugInfo')}
+        </h3>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="bg-white dark:bg-gray-800 rounded p-3 border border-blue-200 dark:border-blue-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('debugTotalIssues')}</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{allIssues.length}</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded p-3 border border-green-200 dark:border-green-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('debugIssuesDone')}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{completedIssues.length}</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded p-3 border border-orange-200 dark:border-orange-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('debugIssuesInProgress')}</p>
+            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{allIssues.length - completedIssues.length}</p>
+          </div>
+        </div>
+      </div> */}
+
+      {/* Burndown Data Table */}
+      <BurndownDataTable
+        timeline={timeline}
+        totalEstimate={totalEstimate}
+        totalSpent={totalSpent}
+      />
+
+      {/* Comprehensive Explanation */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-6 text-sm border border-blue-200 dark:border-gray-600 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-600 dark:text-blue-400">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+          {t('readingChart')}
+        </h3>
+
+        <div className="space-y-4">
+          {/* How It Works */}
+          <div>
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">{t('chartHowItWorks')}</h4>
+
+            {/* Axes & Units */}
+            <div className="ml-3 mb-3">
+              <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chartAxesUnits')}</p>
+              <ul className="list-disc list-inside space-y-1 ml-3 text-gray-600 dark:text-gray-400">
+                <li>{t('chartAxisX')}</li>
+                <li>{t('chartAxisY')}</li>
+                <li>{t('chartUnits')}</li>
               </ul>
             </div>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
-              💡 <strong>{t('debugTip')}</strong>
-            </p>
-          </div>
-        </details>
-      </div>
 
-      {/* Explanation */}
-      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-        <p className="mb-2"><strong>{t('readingChart')}</strong></p>
-        <ul className="list-disc list-inside space-y-1">
-          <li><strong>{t('chartAxisX')}</strong></li>
-          <li><strong>{t('chartAxisY')}</strong> (0 - {totalEstimateHours.toFixed(0)} {t('hours')})</li>
-          <li><strong className="text-gray-600 dark:text-gray-400">{t('chartIdealLine')}</strong></li>
-          <li><strong className="text-red-600 dark:text-red-400">{t('chartActualLine')}</strong></li>
-          <li>{t('chartBehind')}</li>
-          <li>{t('chartAhead')}</li>
-        </ul>
+            {/* Lines */}
+            <div className="ml-3 mb-3">
+              <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chartLines')}</p>
+              <ul className="list-none space-y-2 ml-3">
+                <li className="flex items-start gap-2">
+                  <svg width="24" height="8" className="flex-shrink-0 mt-2">
+                    <line x1="0" y1="4" x2="24" y2="4" stroke="#9CA3AF" strokeWidth="2" strokeDasharray="4 2" />
+                  </svg>
+                  <span className="flex-1 text-gray-600 dark:text-gray-400">{t('chartIdealLine')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <svg width="24" height="8" className="flex-shrink-0 mt-2">
+                    <line x1="0" y1="4" x2="24" y2="4" stroke="#EF4444" strokeWidth="3" />
+                  </svg>
+                  <span className="flex-1 text-gray-600 dark:text-gray-400">{t('chartRemainingLine')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <svg width="24" height="8" className="flex-shrink-0 mt-2">
+                    <line x1="0" y1="4" x2="24" y2="4" stroke="#3B82F6" strokeWidth="3" />
+                  </svg>
+                  <span className="flex-1 text-gray-600 dark:text-gray-400">{t('chartCompletedLine')}</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Tracking Progress */}
+            <div className="ml-3">
+              <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chartTracking')}</p>
+              <ul className="list-disc list-inside space-y-1 ml-3 text-gray-600 dark:text-gray-400">
+                <li>{t('chartStart')}</li>
+                <li>{t('chartCompletion')}</li>
+                <li>{t('chartMovement')}</li>
+                <li className="text-orange-600 dark:text-orange-400">{t('chartBehind')}</li>
+                <li className="text-green-600 dark:text-green-400">{t('chartAhead')}</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* What It Tells You */}
+          <div className="pt-3 border-t border-blue-200 dark:border-gray-600">
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">{t('chartTellsYou')}</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 ml-3">
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
+                <span className="text-gray-600 dark:text-gray-400">{t('chartPredictability')}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
+                <span className="text-gray-600 dark:text-gray-400">{t('chartBottlenecks')}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
+                <span className="text-gray-600 dark:text-gray-400">{t('chartScopeChange')}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
+                <span className="text-gray-600 dark:text-gray-400">{t('chartEfficiency')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

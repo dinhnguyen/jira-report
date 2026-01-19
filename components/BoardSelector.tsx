@@ -6,30 +6,40 @@ import { useTranslation } from '@/locales/translations';
 
 interface BoardSelectorProps {
   onBoardsSelected: (boardIds: string[]) => void;
+  initialBoardIds?: string[];
 }
 
 const STORAGE_KEY = 'jira-report-board-ids';
 
-export default function BoardSelector({ onBoardsSelected }: BoardSelectorProps) {
+export default function BoardSelector({ onBoardsSelected, initialBoardIds }: BoardSelectorProps) {
   const { settings } = useSettings();
   const t = useTranslation(settings.language);
   const [boardInput, setBoardInput] = useState('');
   const [parsedBoards, setParsedBoards] = useState<string[]>([]);
 
-  // Load board IDs from localStorage on mount
+  // Load board IDs from URL params or localStorage on mount
   useEffect(() => {
-    const savedBoardIds = localStorage.getItem(STORAGE_KEY);
-    if (savedBoardIds) {
-      setBoardInput(savedBoardIds);
-      // Parse and update
-      const boards = savedBoardIds
-        .split(/[,\s\n]+/)
-        .map(id => id.trim())
-        .filter(id => id.length > 0);
-      setParsedBoards(boards);
-      onBoardsSelected(boards);
+    // Prioritize URL params over localStorage
+    if (initialBoardIds && initialBoardIds.length > 0) {
+      const boardValue = initialBoardIds.join(', ');
+      setBoardInput(boardValue);
+      setParsedBoards(initialBoardIds);
+      // Save URL params to localStorage for future use
+      localStorage.setItem(STORAGE_KEY, boardValue);
+    } else {
+      const savedBoardIds = localStorage.getItem(STORAGE_KEY);
+      if (savedBoardIds) {
+        setBoardInput(savedBoardIds);
+        // Parse and update
+        const boards = savedBoardIds
+          .split(/[,\s\n]+/)
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+        setParsedBoards(boards);
+        onBoardsSelected(boards);
+      }
     }
-  }, [onBoardsSelected]);
+  }, [initialBoardIds, onBoardsSelected]);
 
   const handleInputChange = (value: string) => {
     setBoardInput(value);

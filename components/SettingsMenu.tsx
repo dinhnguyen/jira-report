@@ -7,7 +7,7 @@ import { useTranslation } from '@/locales/translations';
 export default function SettingsMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { settings, setTheme, setLanguage, setJiraConfig, isJiraConfigured } = useSettings();
+  const { settings, setTheme, setLanguage, setTimeCalculationMethod, setJiraConfig, isJiraConfigured } = useSettings();
   const t = useTranslation(settings.language);
 
   // Local state for Jira config form
@@ -217,6 +217,34 @@ export default function SettingsMenu() {
                     }`}
                 >
                   <span className="text-sm font-medium">{t('vietnamese')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Time Calculation Method */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                {t('timeCalculationMethod')}
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTimeCalculationMethod('original')}
+                  className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 ${settings.timeCalculationMethod === 'original'
+                      ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                >
+                  <span className="text-sm font-medium">{t('byOriginalEstimate')}</span>
+                </button>
+
+                <button
+                  onClick={() => setTimeCalculationMethod('remaining')}
+                  className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 ${settings.timeCalculationMethod === 'remaining'
+                      ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                >
+                  <span className="text-sm font-medium">{t('byRemainingEstimate')}</span>
                 </button>
               </div>
             </div>

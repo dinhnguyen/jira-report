@@ -7,6 +7,7 @@ export interface JiraBoard {
 export interface JiraIssue {
   id: string;
   key: string;
+  expand?: string;
   fields: {
     summary: string;
     status: {
@@ -38,6 +39,23 @@ export interface JiraIssue {
     resolutiondate?: string;
     sprint?: JiraSprint[];
   };
+  changelog?: {
+    startAt: number;
+    maxResults: number;
+    total: number;
+    histories: Array<{
+      id: string;
+      created: string;
+      items: Array<{
+        field: string;
+        fieldtype: string;
+        from: string;
+        fromString: string;
+        to: string;
+        toString: string;
+      }>;
+    }>;
+  };
 }
 
 export interface JiraSprint {
@@ -58,6 +76,8 @@ export interface TimeData {
   ratio: number;
   issuesCompleted: number;
   totalIssues: number;
+  deltaSeconds?: number; // Daily change in remaining work (negative = work completed, positive = scope added)
+  deltaReason?: string; // Brief description of what changed
 }
 
 export interface BurndownData {
@@ -84,4 +104,42 @@ export interface CompletedIssue {
 export interface CompletedIssuesByDate {
   date: string;
   issues: CompletedIssue[];
+}
+
+export interface JiraWorklog {
+  id: string;
+  issueId: string;
+  author: {
+    displayName: string;
+    emailAddress?: string;
+  };
+  created: string;
+  updated: string;
+  started: string; // When the work was actually done
+  timeSpent: string; // e.g., "2h 30m"
+  timeSpentSeconds: number;
+}
+
+export interface WorklogsByIssue {
+  issueKey: string;
+  worklogs: JiraWorklog[];
+  totalTimeSpentSeconds: number;
+}
+
+export interface DailyIssueChange {
+  issueKey: string;
+  summary: string;
+  changeType: 'timeSpent' | 'originalEstimate' | 'remainingEstimate';
+  previousValue: number; // in seconds
+  newValue: number; // in seconds
+  delta: number; // in seconds (positive = increase, negative = decrease)
+  author?: string;
+}
+
+export interface DailyChangeSummary {
+  date: string;
+  changes: DailyIssueChange[];
+  totalTimeSpentDelta: number;
+  totalEstimateDelta: number;
+  totalRemainingDelta: number;
 }

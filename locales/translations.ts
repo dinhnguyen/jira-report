@@ -29,38 +29,43 @@ export const translations = {
     hours: 'hours',
     issues: 'issues',
 
-    // Assignee Stats
-    assigneeStats: 'Statistics by Assignee',
-    people: 'people',
-    clickToHide: 'Click to hide',
-    clickToExpand: 'Click to view details',
-    issuesCompleted: 'issues completed',
-    totalEstimate: 'total estimate',
-    completedWork: 'Completed',
-    remainingWork: 'Remaining',
-
     // Chart
-    chartTitle: 'Burndown Chart - Remaining Work Over Time',
+    chartTitle: 'Burndown Chart - Progress Over Time',
     idealLine: 'Ideal Line',
-    remainingTime: 'Remaining Work',
-    readingChart: 'How to read the chart:',
-    chartAxisX: 'X-Axis (Horizontal): Displays full sprint timeline from start to end date',
-    chartAxisY: 'Y-Axis (Vertical): Displays total sprint work time',
-    chartIdealLine: 'Gray line (ideal): Represents steady progress completion from total work to 0',
-    chartActualLine: 'Red line (remaining work): Represents actual remaining work, decreases when Done, increases with scope creep',
-    chartBehind: 'If red line is higher than gray → Progress is slower than expected',
-    chartAhead: 'If red line is lower than gray → Progress is faster than expected',
+    remainingWorkLine: 'Remaining Work',
+    timeSpentLine: 'Time Spent',
+    readingChart: 'How to Read the Burndown Chart',
+
+    // Chart Details
+    chartHowItWorks: 'How It Works:',
+    chartAxesUnits: 'Axes & Units:',
+    chartAxisX: 'X-Axis (Horizontal): Time (days in the sprint)',
+    chartAxisY: 'Y-Axis (Vertical): Work amount in hours (both remaining work and time spent)',
+    chartUnits: 'Units: Configured on your Jira board (e.g., story points, time)',
+
+    chartLines: 'Lines:',
+    chartIdealLine: 'Ideal Line (Gray Dashed): A straight, downward-sloping line from the starting work total to zero, showing perfect, consistent progress',
+    chartRemainingLine: 'Remaining Work (Red Solid): Shows work remaining; decreases as issues are completed',
+    chartCompletedLine: 'Time Spent (Blue Solid): Shows cumulative time spent; increases as work is completed',
+
+    chartTracking: 'Tracking Progress:',
+    chartStart: 'Start: The chart begins with the total estimated work for the sprint',
+    chartCompletion: 'Completion: When an issue is moved to "Done" status, the blue line (time spent) increases and red line (remaining work) decreases',
+    chartMovement: 'Movement: The red line should ideally stay close to or below the gray ideal line',
+    chartBehind: 'If red line goes above gray ideal line → You\'re falling behind schedule',
+    chartAhead: 'If red line stays below gray ideal line → You\'re ahead of schedule',
+
+    chartTellsYou: 'What It Tells You:',
+    chartPredictability: 'Predictability: Helps forecast if the sprint goal will be met',
+    chartBottlenecks: 'Bottlenecks: Highlights days with little or no progress (flat blue line means no work completed)',
+    chartScopeChange: 'Scope Change: If red line increases unexpectedly, work was added during sprint',
+    chartEfficiency: 'Team Efficiency: Compare red line vs gray ideal line to see if team is on track',
 
     // Debug Panel
-    debugInfo: 'Debug Information (Click to view details)',
-    debugOverview: 'Overview:',
+    debugInfo: 'Debug Information',
     debugTotalIssues: 'Total issues',
     debugIssuesDone: 'Issues Done',
     debugIssuesInProgress: 'Issues in progress',
-    debugTimeHours: 'Time (hours):',
-    debugTotalEstimate: 'Total estimate',
-    debugFormulas: 'Calculation formulas:',
-    debugTip: 'Tip: Open Developer Console (F12) to see detailed calculation logs',
 
     // Sprint Issues List
     sprintIssues: 'Sprint Issues List',
@@ -76,6 +81,9 @@ export const translations = {
     status: 'Status',
     assignee: 'Assignee',
     timeEstimate: 'Time Estimate',
+    timeSpent: 'Time Spent',
+    timeRemaining: 'Remaining',
+    lastUpdated: 'Last Updated',
     unassigned: 'Unassigned',
 
     // Status
@@ -114,6 +122,9 @@ export const translations = {
     darkMode: 'Dark',
     english: 'English',
     vietnamese: 'Tiếng Việt',
+    timeCalculationMethod: 'Time Calculation Method',
+    byOriginalEstimate: 'By Original Estimate',
+    byRemainingEstimate: 'By Remaining Estimate',
 
     // Jira Configuration
     jiraConfiguration: 'Jira Configuration',
@@ -166,38 +177,43 @@ export const translations = {
     hours: 'giờ',
     issues: 'issues',
 
-    // Assignee Stats
-    assigneeStats: 'Thống kê theo người',
-    people: 'người',
-    clickToHide: 'Click để ẩn',
-    clickToExpand: 'Click để xem chi tiết',
-    issuesCompleted: 'issues hoàn thành',
-    totalEstimate: 'tổng estimate',
-    completedWork: 'Đã xong',
-    remainingWork: 'Còn lại',
-
     // Chart
-    chartTitle: 'Biểu đồ Burndown - Công việc còn lại theo thời gian',
+    chartTitle: 'Biểu đồ Burndown - Tiến độ theo thời gian',
     idealLine: 'Đường lý tưởng (Ideal Line)',
-    remainingTime: 'Thời gian còn lại (Remaining Work)',
-    readingChart: 'Cách đọc biểu đồ:',
-    chartAxisX: 'Trục X (Horizontal): Hiển thị đầy đủ timeline của sprint từ ngày bắt đầu đến ngày kết thúc',
-    chartAxisY: 'Trục Y (Vertical): Hiển thị tổng thời gian công việc của sprint',
-    chartIdealLine: 'Đường màu xám (lý tưởng): Thể hiện tiến độ hoàn thành đều đặn từ tổng công việc về 0',
-    chartActualLine: 'Đường màu đỏ (thời gian còn lại): Thể hiện công việc còn lại thực tế, giảm khi tickets chuyển sang Done, tăng nếu có scope creep',
-    chartBehind: 'Nếu đường đỏ cao hơn đường xám → Tiến độ chậm hơn dự kiến',
-    chartAhead: 'Nếu đường đỏ thấp hơn đường xám → Tiến độ nhanh hơn dự kiến',
+    remainingWorkLine: 'Công việc còn lại',
+    timeSpentLine: 'Thời gian đã dùng',
+    readingChart: 'Cách Đọc Biểu Đồ Burndown',
+
+    // Chart Details
+    chartHowItWorks: 'Cách Hoạt Động:',
+    chartAxesUnits: 'Trục & Đơn Vị:',
+    chartAxisX: 'Trục X (Ngang): Thời gian (các ngày trong sprint)',
+    chartAxisY: 'Trục Y (Dọc): Số giờ công việc (bao gồm cả còn lại và đã dùng)',
+    chartUnits: 'Đơn vị: Được cấu hình trên Jira board của bạn (ví dụ: story points, thời gian)',
+
+    chartLines: 'Các Đường:',
+    chartIdealLine: 'Đường Lý Tưởng (Xám Đứt): Đường thẳng dốc xuống từ tổng công việc ban đầu về 0, thể hiện tiến độ hoàn hảo và đều đặn',
+    chartRemainingLine: 'Công Việc Còn Lại (Đỏ Liền): Hiển thị công việc còn lại; giảm xuống khi hoàn thành issues',
+    chartCompletedLine: 'Thời Gian Đã Dùng (Xanh Liền): Hiển thị tổng thời gian đã dùng tích lũy; tăng lên khi hoàn thành công việc',
+
+    chartTracking: 'Theo Dõi Tiến Độ:',
+    chartStart: 'Bắt đầu: Biểu đồ bắt đầu với tổng công việc ước tính cho sprint',
+    chartCompletion: 'Hoàn thành: Khi issue chuyển sang "Done", đường xanh (thời gian đã dùng) tăng lên và đường đỏ (còn lại) giảm xuống',
+    chartMovement: 'Chuyển động: Đường đỏ nên ở gần hoặc dưới đường xám lý tưởng',
+    chartBehind: 'Nếu đường đỏ ở trên đường xám lý tưởng → Bạn đang chậm tiến độ',
+    chartAhead: 'Nếu đường đỏ ở dưới đường xám lý tưởng → Bạn đang vượt lịch trình',
+
+    chartTellsYou: 'Biểu Đồ Cho Bạn Biết:',
+    chartPredictability: 'Khả năng dự đoán: Giúp dự báo liệu mục tiêu sprint có được hoàn thành hay không',
+    chartBottlenecks: 'Điểm nghẽn: Làm nổi bật những ngày có ít tiến độ (đường xanh phẳng = không hoàn thành công việc)',
+    chartScopeChange: 'Thay đổi phạm vi: Nếu đường đỏ tăng bất ngờ, có công việc được thêm vào trong sprint',
+    chartEfficiency: 'Hiệu suất team: So sánh đường đỏ với đường xám lý tưởng để xem team có đúng hướng',
 
     // Debug Panel
-    debugInfo: 'Debug Information (Click để xem chi tiết kiểm tra)',
-    debugOverview: 'Số liệu tổng quan:',
+    debugInfo: 'Thông tin Debug',
     debugTotalIssues: 'Tổng issues',
     debugIssuesDone: 'Issues Done',
     debugIssuesInProgress: 'Issues đang làm',
-    debugTimeHours: 'Thời gian (giờ):',
-    debugTotalEstimate: 'Tổng estimate',
-    debugFormulas: 'Công thức tính:',
-    debugTip: 'Tip: Mở Developer Console (F12) để xem logs chi tiết về cách tính toán',
 
     // Sprint Issues List
     sprintIssues: 'Danh sách Issues trong Sprint',
@@ -213,6 +229,9 @@ export const translations = {
     status: 'Trạng thái',
     assignee: 'Assignee',
     timeEstimate: 'Time Estimate',
+    timeSpent: 'Đã dùng',
+    timeRemaining: 'Còn lại',
+    lastUpdated: 'Cập nhật lần cuối',
     unassigned: 'Unassigned',
 
     // Status
@@ -251,6 +270,9 @@ export const translations = {
     darkMode: 'Tối',
     english: 'English',
     vietnamese: 'Tiếng Việt',
+    timeCalculationMethod: 'Phương pháp tính giờ',
+    byOriginalEstimate: 'Theo Original Estimate',
+    byRemainingEstimate: 'Theo Remaining Estimate',
 
     // Jira Configuration
     jiraConfiguration: 'Cấu hình Jira',
